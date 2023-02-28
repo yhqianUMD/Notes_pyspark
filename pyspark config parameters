@@ -1,0 +1,8 @@
+1. To control the number of partitions when performing a join operation:
+1) spark.sql.shuffle.partitions: this is used when we are joining two DataFrames.
+2) spark.default.parallel: this is used when we are joining two RDDs.
+
+2. config('spark.driver.maxResultSize', '0') is used to define the maximum limit of the total size of the serialized result that a driver can store for each Spark collect action.
+e.f., spark.driver.maxResultSize=1g means that the driver can store up to 1GB of data for each collect action.
+Setting a high limit for spark.driver.maxResultSize can cause out-of-memory errors in the driver because the driver has to collect and store all the data from the workers for each collect action1. This can exceed the available memory of the driver, especially if you have low driver memory configured.
+
