@@ -1,0 +1,19 @@
+1. The level of theoretical parallelism is the maximum number of tasks that can run concurrently on your cluster. This depends on the number of partitions, cores, executors, etc. We can use the following formula to estimate it:
+level_of_parallelism = min(number_of_partitions, number_of_executors * number_of_cores_per_executor)
+
+
+2. number_of_partitions depends on the type of operation and data source. For example:
+1) If we use spark.read.csv(), then number_of_partitions will be determined by the size of the CSV file and the value of spark.sql.files.maxPartitionBytes configuration (default is 128 MB).
+
+2) If we use parallelize(), then number_of_partitions will be determined by the length of the list and the value of spark.default.parallelism configuration (default is 2 * number of cores available).
+
+3) If we use a transformation that involves shuffling data (such as join or groupBy), then number_of_partitions will be determined by the value of spark.sql.shuffle.partitions configuration (default is 200).
+
+3. example
+If the number of executors is 4, the number of cores per executor is 12, and we use spark.read.csv() to read a CSV file that is 1 GB in size, then:
+number_of_partitions = ceil(1 GB / 128 MB) = ceil(7.8125) = 8
+level_of_parallelism = min(8, 4 * 12) = min(8, 48) = 8
+This means that at most 8 tasks can run concurrently on your cluster for this operation.
+
+Note:
+spark.sparkContext.defaultParallelism is defined as the total number of cores available for execution. It does have a relation with level_of_parallelism. It affects how many partitions are created for some operations that do not have a fixed number of partitions, e.g., parallelize, join, reduceByKey, etc.
