@@ -1,0 +1,69 @@
+It should be cautious when using the MapType in pyspark DataFrames.
+Assuming we have a dataframe where one column is a dictionary in the type of MapType.
+The key of this dictionary is an edge (v1, v2); the value of this key is the two triangles incident in this edge [[v1,v2,v3],[v1,v2,v4]].
+This column also contains multiple distionaries, e.g., this column could be {(3,0):[[5, 3, 0], [6, 3, 0]], (5,0):[[5, 2, 0], [5, 3, 0]]}.
+
+In this case, after creating such a dataframe, we cannot directly apply the collect() function to this dataframe. Instead, we should explode it first and then collect it.
+
+df_VT =  df_VV_VT.select("Ver", "Ver_ele", "VT_filtra")
+# Ver is an integer, e.g., 1
+# Ver_ele is a float number
+# VT_filtra is a list of list, e.g., [[1, 2, 3], [1, 2, 5]]
+
+def get_ET_from_VT(Ver, VT_filtra):
+    if VT_filtra:
+        ET = {}
+        for i in range(len(VT_filtra)):
+            t = VT_filtra[i]
+            if abs(t[0] - Ver) < 0.0001: #t[0] == Ver
+                if tuple([t[0], t[1]]) in ET:
+                    ET[tuple([t[0], t[1]])].extend([t])
+                else:
+                    ET[tuple([t[0], t[1]])] = [t]
+                    
+                if tuple([t[0], t[2]]) in ET:
+                    ET[tuple([t[0], t[2]])].extend([t])
+                else:
+                    ET[tuple([t[0], t[2]])] = [t]
+                    
+            if abs(t[1] - Ver) < 0.0001: #t[1] == Ver
+                if tuple([t[0], t[1]]) in ET:
+                    ET[tuple([t[0], t[1]])].extend([t])
+                else:
+                    ET[tuple([t[0], t[1]])] = [t]
+                    
+                if tuple([t[1], t[2]]) in ET:
+                    ET[tuple([t[1], t[2]])].extend([t])
+                else:
+                    ET[tuple([t[1], t[2]])] = [t]
+                    
+            if abs(t[2] - Ver) < 0.0001: #t[2] == Ver
+                if tuple([t[0], t[2]]) in ET:
+                    ET[tuple([t[0], t[2]])].extend([t])
+                else:
+                    ET[tuple([t[0], t[2]])] = [t]
+                    
+                if tuple([t[1], t[2]]) in ET:
+                    ET[tuple([t[1], t[2]])].extend([t])
+                else:
+                    ET[tuple([t[1], t[2]])] = [t]
+                    
+        # remove key-value pairs with only one value, which means the key equal to a boundary edge will be removed
+        ET_filter = {key: value for key, value in ET.items() if len(value) > 1}
+        return ET_filter
+    
+get_ET_from_VT_udf = udf(get_ET_from_VT, MapType(ArrayType(IntegerType()), ArrayType(ArrayType(IntegerType()))))
+
+df_ET = df_VT.withColumn("ET", get_ET_from_VT_udf(df_VT.Ver, df_VT.VT_filtra))
+# Convert keys in the 'ET' column to tuples
+# df_ET = df_ET.withColumn("ET", expr("transform(map_keys(ET), x -> array(x[0], x[1]))"))
+
+df_ET = df_ET.select("Ver", "Ver_ele", "ET")
+df_ET.printSchema()
+
+# df_ET_col = df_ET.collect() # we cannot directly collect it
+# df_ET.show()
+
+df_ET_explode = df_ET.select(df_ET.Ver, df_ET.Ver_ele, explode(df_ET.ET))
+df_ET_explode.printSchema()
+df_ET_explode_col = df_ET_explode.collect()
